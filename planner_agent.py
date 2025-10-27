@@ -130,7 +130,7 @@ async def call_agent(query):
     ]
     
     response = client.chat.completions.create(
-        model="gpt-4",  # Fixed: gpt-5 doesn't exist
+        model="gpt-5", 
         messages=messages,
         tools=tools,
         tool_choice="auto"
