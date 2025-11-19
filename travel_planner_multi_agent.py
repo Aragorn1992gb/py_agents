@@ -267,6 +267,15 @@ def format_travel_json(itinerary_text: str, destination: str,
 # STEP 2: SPECIALIZED AGENTS
 # =============================================================================
 
+# Only if using hierarchical process
+# manager_agent = Agent(
+#     role="Project Manager",
+#     goal="Coordinate and manage the travel planning workflow",
+#     backstory="Experienced project manager who coordinates tasks between agents.",
+#     llm=llm,
+#     allow_delegation=True
+# )
+
 
 # 📋 PLANNER AGENT - Creates structure and optimizes routes
 planner_agent = Agent(
@@ -442,8 +451,10 @@ travel_crew = Crew(
     agents=[planner_agent, researcher_agent],
     tasks=[planning_task, research_task, json_assembly_task],
     verbose=True,
-    # sequential=True
-    process=Process.hierarchical  # Allows parallel execution where possible
+    sequential=True
+    # process=Process.hierarchical  # Allows parallel execution where possible
+    # manager_agent=manager_agent  # Need to add this when using hierarchical
+
 )
 
 # =============================================================================
