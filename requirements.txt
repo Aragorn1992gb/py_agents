@@ -36,6 +36,10 @@ python-decouple>=3.8
 
 crewai>=1.5.0
 
+crewai-tools>=1.5.0
+
 langchain-openai>=1.0.3
 
 litellm>=1.18.0
+
+tavily-python>=0.7.13

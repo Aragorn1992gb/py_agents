@@ -3,6 +3,7 @@ import requests
 import json
 from crewai import Agent, Task, Crew, LLM, Process
 from crewai.tools import tool
+from crewai_tools import TavilySearchTool
 from dotenv import load_dotenv
 import logging
 
@@ -12,6 +13,7 @@ load_dotenv()
 # Set environment variables
 os.environ["OPENAI_API_KEY"] = os.getenv("OPEN_AI_KEY") or ""
 os.environ["SERPER_API_KEY"] = os.getenv("SERPER_API_KEY") or ""
+os.environ["TAVILY_API_KEY"] = os.getenv("TAVILY_API_KEY") or ""
 
 # Configure LLM - Choose your model here
 # Available O1 models: "o1-preview", "o1-mini"
@@ -40,35 +42,46 @@ llm = LLM(
 # STEP 1: SPECIALIZED TOOLS
 # =============================================================================
 
-@tool("Serper Search Tool")
-def serper_search(query: str) -> str:
-    """Performs a web search using Serper API."""
+# Initialize Tavily Search Tool with image support
+tavily_tool = TavilySearchTool(
+    api_key=os.environ.get("TAVILY_API_KEY"),
+    search_depth="advanced",
+    include_images=True,
+    include_answer=True,
+    max_results=5
+)
+
+
+@tool("Comprehensive Travel Search Tool")
+def travel_search(query: str) -> str:
+    """Performs comprehensive travel search with images using Tavily."""
     logging.info(f"🔍 Searching: {query}")
     try:
-        url = "https://google.serper.dev/search"
-        headers = {
-            'X-API-KEY': os.environ.get("SERPER_API_KEY"),
-            'Content-Type': 'application/json'
-        }
-        data = {"q": query, "num": 5}
-
-        response = requests.post(url, headers=headers, json=data)
-        response.raise_for_status()
-        search_data = response.json()
-
-        results = []
-        if (search_data.get("answerBox") and search_data["answerBox"].get("answer")):
-            results.append(f"Answer: {search_data['answerBox']['answer']}")
-
-        if search_data.get("organic"):
-            for result in search_data["organic"][:3]:
-                title = result.get("title", "No title")
-                snippet = result.get("snippet", "No snippet")
-                results.append(f"{title}: {snippet}")
-
-        return "\n".join(results) if results else "No results found."
+        # Use Tavily tool for comprehensive search with images
+        search_results = tavily_tool.run(query)
+ 
+        # Tavily returns structured data with content and images
+        if isinstance(search_results, str):
+            return search_results
+        elif isinstance(search_results, dict):
+            # Format the results nicely
+            formatted_results = []
+    
+            if 'answer' in search_results:
+                formatted_results.append(f"Answer: {search_results['answer']}")
+    
+            if 'results' in search_results:
+                for result in search_results['results'][:3]:
+                    title = result.get('title', 'No title')
+                    content = result.get('content', 'No content')
+                    formatted_results.append(f"{title}: {content}")
+     
+            return "\n".join(formatted_results)
+        else:
+            return str(search_results)
 
     except Exception as e:
+        logging.error(f"Search error: {str(e)}")
         return f"Search error: {str(e)}"
 
 
@@ -94,60 +107,31 @@ def location_optimizer(attractions_list: str, location: str) -> str:
     return optimization_prompt
 
 
-@tool("Attraction Details Tool")
-def attraction_details(attraction_name: str, location: str,
-                       visit_date: str) -> str:
-    """Gets detailed information about a specific attraction."""
+@tool("Enhanced Attraction Details Tool")
+def attraction_details_with_images(attraction_name: str, location: str,
+                                 visit_date: str) -> str:
+    """Gets detailed information and images for attractions using Tavily."""
     logging.info(f"🏛️ Getting details for: {attraction_name} on {visit_date}")
-    
-    attraction_details_prompt = f"""
-    Find detailed information for the attraction "{attraction_name}" in {location} for visit date {visit_date}.
 
-    Focus on:
-    - Opening hours and ticket prices for {visit_date}
-    - Current events, exhibitions, or special activities happening on {visit_date}
-    - Visitor tips and practical information for that specific date
-    - Day-of-week considerations (weekday vs weekend crowds, closures)
-    - Seasonal factors affecting the visit on {visit_date}
-    - Best times to visit on {visit_date} to avoid crowds
+    # Create comprehensive query for Tavily
+    query = f"{attraction_name} {location} opening hours prices tickets {visit_date} 2025 visitor information"
 
-    Provide a concise summary with practical details for travelers visiting on {visit_date}.
-    """
+    try:
+        # Use Tavily for comprehensive search with images
+        search_results = tavily_tool.run(query)
 
-    return attraction_details_prompt
+        # Add image search for the attraction
+        image_query = f"{attraction_name} {location} photos high quality images"
+        image_results = tavily_tool.run(image_query)
 
+        # Combine results
+        combined_results = f"ATTRACTION DETAILS:\n{search_results}\n\nIMAGES:\n{image_results}"
 
-@tool("Enhanced Image Finder Tool")
-def image_finder(attraction_name: str, location: str) -> str:
-    """Provides guidance for finding high-quality images of attractions."""
-    logging.info(f"📸 Finding images for: {attraction_name}")
+        return combined_results
 
-    image_search_prompt = f"""
-    Find high-quality, representative images for "{attraction_name}" in {location}.
-
-    Search for:
-    - Professional photos showing the attraction's key features
-    - Images that capture the architectural or natural beauty
-    - Photos taken during different times of day (golden hour preferred)
-    - Images that show the scale and context of the attraction
-    - Current photos (not historical unless specifically relevant)
-
-    Focus on finding images that would help travelers:
-    - Recognize the attraction when they arrive
-    - Understand what makes it visually impressive
-    - See the best angles or viewpoints for their own photos
-
-    Return image data in this format:
-    {{
-        "location": "{attraction_name}, {location}",
-        "image_url": "[actual URL from search results]",
-        "image_description": "Brief description of what the image shows"
-    }}
-
-    Use web search to find actual image URLs from reliable sources.
-    """
-
-    return image_search_prompt
+    except Exception as e:
+        logging.error(f"Attraction details error: {str(e)}")
+        return f"Error getting attraction details: {str(e)}"
 
 
 @tool("JSON Formatter Tool")
@@ -157,80 +141,94 @@ def format_travel_json(itinerary_text: str, destination: str,
     logging.info("📋 Formatting itinerary into JSON structure")
 
     try:
-        # Parse the itinerary text and extract structured data
+        # Try to parse if it's already JSON
+        if itinerary_text.strip().startswith('{'):
+            parsed_json = json.loads(itinerary_text)
+
+            # Add images to the existing structure
+            if 'itinerary' in parsed_json and 'days' in parsed_json['itinerary']:
+                for day in parsed_json['itinerary']['days']:
+                    # Add images_day field with sample images for each day
+                    day['images_day'] = [
+                        {
+                            "url": f"https://upload.wikimedia.org/wikipedia/commons/placeholder_day_{day.get('day_number', 1)}.jpg",
+                            "description": f"Beautiful view of {day.get('title', 'Rome')} attractions"
+                        }
+                    ]
+                    # Ensure standard field names
+                    if 'day_number' in day:
+                        day['day'] = day['day_number']
+                    if 'title' in day:
+                        day['location'] = day['title']
+                        day['description'] = day.get('day_description', '')
+
+            return json.dumps(parsed_json, indent=2)
+
+        # If not JSON, parse as text (original logic)
         lines = itinerary_text.split('\n')
         days = []
         current_day = None
         current_activities = []
         current_images = []
-        
+
         for line in lines:
             line = line.strip()
             if not line:
                 continue
-                
-            # Detect day headers (e.g., "Day 1 – 1 Dec 2025 – Colosseum...")
-            if line.startswith('Day ') and '–' in line:
+
+            # Detect day headers
+            if line.startswith('Day ') and (':' in line or '–' in line):
                 # Save previous day if exists
                 if current_day is not None:
                     current_day['activities'] = current_activities
                     current_day['images_day'] = current_images
                     days.append(current_day)
-                
+
                 # Parse day header
-                parts = line.split('–')
-                day_num = parts[0].strip().replace('Day ', '')
-                day_date = parts[1].strip() if len(parts) > 1 else ""
-                day_location = parts[2].strip() if len(parts) > 2 else destination
-                
+                if '–' in line:
+                    parts = line.split('–')
+                    day_num = parts[0].strip().replace('Day ', '')
+                    day_location = parts[1].strip() if len(parts) > 1 else destination
+                else:
+                    # Handle "Day X:" format
+                    day_num = line.split(':')[0].strip().replace('Day ', '')
+                    day_location = destination
+
                 current_day = {
                     "day": int(day_num),
                     "location": day_location,
                     "description": "",
                     "activities": [],
-                    "images_day": []
+                    "images_day": [
+                        {
+                            "url": f"https://upload.wikimedia.org/wikipedia/commons/placeholder_day_{day_num}.jpg",
+                            "description": f"Sample image for day {day_num} in {destination}"
+                        }
+                    ]
                 }
                 current_activities = []
                 current_images = []
-            
-            # Parse activities (numbered items like "1. Colosseum")
-            elif line and line[0].isdigit() and '.' in line:
-                activity_name = line.split('.', 1)[1].strip()
+
+            # Parse activities (numbered or bulleted items)
+            elif (line and line[0].isdigit() and '.' in line) or line.startswith('- '):
+                if line.startswith('- '):
+                    activity_name = line[2:].strip()
+                else:
+                    activity_name = line.split('.', 1)[1].strip()
+
                 current_activity = {
                     "time": "",
                     "name": activity_name,
                     "description": ""
                 }
                 current_activities.append(current_activity)
-            
-            # Parse time information
-            elif '- Time:' in line:
-                time_info = line.split('Time:')[1].strip()
-                if current_activities:
-                    current_activities[-1]['time'] = time_info
-            
-            # Parse description
-            elif '- Description:' in line:
-                desc_info = line.split('Description:')[1].strip()
-                if current_activities:
-                    current_activities[-1]['description'] = desc_info
-            
-            # Parse images
-            elif '- Images:' in line or line.strip().startswith('-') and 'image' in line.lower():
-                # Extract image descriptions for later conversion to URLs
-                img_desc = line.replace('-', '').strip()
-                if img_desc and current_day:
-                    current_images.append({
-                        "url": "https://upload.wikimedia.org/wikipedia/commons/placeholder.jpg",
-                        "description": img_desc
-                    })
 
         # Add the last day
         if current_day is not None:
             current_day['activities'] = current_activities
             current_day['images_day'] = current_images
             days.append(current_day)
-        
+
         # Create final structured JSON
         formatted_json = {
             "success": True,
@@ -244,7 +242,7 @@ def format_travel_json(itinerary_text: str, destination: str,
 
     except Exception as e:
         logging.error(f"JSON formatting error: {str(e)}")
-        # Fallback to simple structure
+        # Enhanced fallback with placeholder images
         fallback_json = {
             "success": True,
             "message": "Itinerary generated successfully",
@@ -255,7 +253,12 @@ def format_travel_json(itinerary_text: str, destination: str,
                         "location": destination,
                         "description": "See detailed itinerary text",
                         "activities": [],
-                        "images_day": []
+                        "images_day": [
+                            {
+                                "url": "https://upload.wikimedia.org/wikipedia/commons/placeholder.jpg",
+                                "description": f"Sample image for {destination}"
+                            }
+                        ]
                     }
                 ]
             },
@@ -294,18 +297,7 @@ researcher_agent = Agent(
     goal="Gather comprehensive details about attractions, transport, accommodation, and practical travel information",
     backstory="You are a meticulous travel researcher who finds detailed, accurate information about destinations. You specialize in opening hours, ticket prices, transport options, and practical visitor information.",
     verbose=True,
-    tools=[serper_search, attraction_details],
-    llm=llm,  # Use configured LLM
-    allow_delegation=False
-)
-
-# 📸 IMAGE COLLECTOR AGENT - Finds relevant images
-image_collector_agent = Agent(
-    role="Visual Content Curator",
-    goal="Find high-quality, relevant images for each day's main attractions and activities", 
-    backstory="You are a visual content specialist who finds the best representative images for travel destinations. You focus on finding images that showcase the key attractions and experiences for each day.",
-    verbose=True,
-    tools=[serper_search, image_finder],
+    tools=[travel_search, attraction_details_with_images],
     llm=llm,  # Use configured LLM
     allow_delegation=False
 )
@@ -381,31 +373,6 @@ research_task = Task(
     context=[planning_task]  # Gets input from planning_task
 )
 
-# 📸 TASK 3: Image Collection (Image Collector Agent)
-image_collection_task = Task(
-    description="""
-    Take the detailed itinerary and add visual elements for each day.
-
-    YOUR TASKS:
-    1. Find relevant images for each day's main attractions
-    2. Select 1-3 key images per day representing main highlights  
-    3. Ensure images match the specific attractions mentioned
-    4. Provide image descriptions and context
-
-    OUTPUT FORMAT: Complete itinerary with image sections:
-    - Image URLs for key attractions
-    - Descriptive captions
-    - Location context for each image
-
-    Focus on the most important attractions from each day.
-    """,
-    expected_output="Final comprehensive itinerary with relevant images, URLs, and descriptions for each day's key attractions",
-    agent=image_collector_agent,
-    # TODO maybe is better to don't wait for the research task
-    # context=[planning_task, research_task]  # Gets input from both previous tasks
-    context=[planning_task] 
-)
-
 # 📋 TASK 4: Final JSON Assembly
 json_assembly_task = Task(
     description="""
@@ -425,7 +392,7 @@ json_assembly_task = Task(
     """,
     expected_output="Complete JSON-formatted itinerary with success, message, and itinerary.days containing all travel information in proper structure",
     agent=planner_agent,  # Reuse planner agent for final assembly
-    context=[planning_task, research_task, image_collection_task],
+    context=[planning_task, research_task],  # Images included in research task
     tools=[format_travel_json]  # Add the JSON formatter tool
 )
 
@@ -499,20 +466,9 @@ def create_travel_itinerary(destination: str, start_date: str, end_date: str,
     3. Add transport information between locations
     4. Include relevant tips and descriptions
     5. Verify current information and availability for {start_date} to {end_date}
+    6. Find high-quality images for each day's main attractions
 
     Build upon the previous task's structure.
-    """
-
-    image_collection_task.description = f"""
-    Take the detailed itinerary for {destination} and add visual elements for each day.
-
-    YOUR TASKS:
-    1. Find relevant images for each day's main attractions in {destination}
-    2. Select 1-3 key images per day representing main highlights
-    3. Ensure images match the specific attractions mentioned
-    4. Provide image descriptions and context
-
-    Focus on the most important attractions from each day in {destination}.
     """
     print(f"🚀 Starting multi-agent travel planning for {destination}")
     print(f"📅 Dates: {start_date} to {end_date}")
