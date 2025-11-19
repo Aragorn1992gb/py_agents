@@ -65,6 +65,27 @@ def serper_search(query: str) -> str:
         return f"Error searching: {str(e)}"
 
 
+@tool("Content Filter Tool")
+def content_filter(content: str) -> str:
+    """Filter inappropriate content from search results."""
+    inappropriate_keywords = [
+        "sex", "adult", "18+", "porn", "explicit", "mature",
+        "nude", "xxx", "erotic", "nsfw"
+    ]
+
+    lines = content.split('\n')
+    filtered_lines = []
+
+    for line in lines:
+        line_lower = line.lower()
+        if not any(keyword in line_lower for keyword in inappropriate_keywords):
+            filtered_lines.append(line)
+        else:
+            logging.info(f"Filtered inappropriate content: {line[:50]}...")
+
+    return '\n'.join(filtered_lines)
+
+
 # Tool to generate itinerary text using OpenAI
 @tool("OpenAI Itinerary Generator")
 def generate_itinerary(place: str, date_from: str, date_to: str,
@@ -93,10 +114,23 @@ Define the Agent
 """
 itinerary_agent = Agent(
     role="Travel Planner",
-    goal="Create a travel itinerary given place and dates using live data",
+    goal="Create a travel itinerary given place and dates using live data."
+    "Include only attractions of the place, no events/restaurants",
     backstory="Experienced travel planner using AI and web search tools.",
     verbose=True,
     tools=[serper_search, generate_itinerary],
+    allow_delegation=False,
+)
+
+researcher_agent = Agent(
+    role='Event Researcher',
+    goal='Find family-friendly events and activities for each day'
+    'of the itinerary that match the travel dates and locations.',
+    backstory="You are an experienced event researcher specializing in"
+    "finding current, family-friendly events and activities. You verify"
+    "dates and locations carefully and filter out inappropriate content.",
+    verbose=True,
+    tools=[serper_search, content_filter],
     allow_delegation=False,
 )
 
@@ -111,6 +145,7 @@ itinerary_task = Task(
     description=(
         "Given a place and date range, create a travel itinerary "
         "using serper to fetch live info and OpenAI to generate text."
+        "Don't include events."
     ),
     expected_output=(
         "A structured itinerary text with recommended places and activities."
@@ -118,7 +153,28 @@ itinerary_task = Task(
     agent=itinerary_agent,
 )
 
-# TODO refine it. It says that on on 3 December there is Sex.Exe event, which is wrong. Furthermore, can be a event > 18, so add a Guardrail tool to filter inappropriate content.
+researcher_task = Task(
+    description=(
+        "Based on the itinerary provided, find specific family-friendly events"
+        "and activities for each day and location mentioned. "
+        "Search for events that match the exact dates and verify they exist. "
+        "Filter out any inappropriate content using the content_filter tool. "
+        "Focus on cultural events, festivals, exhibitions, concerts, "
+        "workshops, and family activities."
+    ),
+    expected_output=(
+        "A detailed list of verified events for each day, including: "
+        "- Event name and type\n"
+        "- Exact date and time\n"
+        "- Location/venue\n"
+        "- Brief description\n"
+        "- Target audience (family-friendly, adults, etc.)\n"
+        "- Ticket information if available\n"
+        "Format as a structured day-by-day event schedule."
+    ),
+    agent=researcher_agent,
+)
+
 
 # Define the Crew
 """
@@ -128,8 +184,8 @@ Define the Crew
 - "verbose" enables detailed logging
 """
 itinerary_crew = Crew(
-    agents=[itinerary_agent],
-    tasks=[itinerary_task],
+    agents=[itinerary_agent, researcher_agent],
+    tasks=[itinerary_task, researcher_task],
     verbose=True,
 )
 
@@ -140,21 +196,28 @@ def main():
     date_from = "2025-12-01"
     date_to = "2025-12-05"
 
-    # Update the task with specific inputs
+    # Update the tasks with specific inputs
     itinerary_task.description = (
         f"Create a travel itinerary for {place} "
         f"from {date_from} to {date_to}. "
         f"Use the serper_search tool to get current information "
-        f"about attractions, events, and activities in {place} "
-        f"for December 2025. "
-        f"Then use the generate_itinerary tool to create "
-        f"a structured itinerary."
+        f"about attractions and activities in {place} for December 2025. "
+        f"Focus on tourist attractions, museums, landmarks, and activities. "
+        f"DO NOT include events, festivals, or time-specific activities. "
+        f"Then use the generate_itinerary tool to create a structured itinerary."
     )
 
-    # Execute the crew
+    print(f"🗺️  Creating itinerary for {place} ({date_from} to {date_to})")
+    print("📋 Task 1: Generating base itinerary...")
+    print("🎯 Task 2: Researching events for each day...")
+    
+    # Execute the crew (both tasks will run in sequence)
     result = itinerary_crew.kickoff()
 
-    print("\nGenerated Itinerary:\n", result)
+    print("\n" + "="*50)
+    print("✅ COMPLETE TRAVEL PLAN")
+    print("="*50)
+    print(result)
 
 
 if __name__ == "__main__":
