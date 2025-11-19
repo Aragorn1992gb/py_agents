@@ -98,8 +98,9 @@ def generate_itinerary(place: str, date_from: str, date_to: str,
         f"Use the following live info: {live_info}\n"
         "Make it structured and clear."
     )
-    response = openai_client.complete(prompt)
-    return response.text
+    response = openai_client.invoke(prompt)
+    # return response.text
+    return response
 
 
 # Define the Agent
@@ -198,9 +199,9 @@ def main():
 
     # Update the tasks with specific inputs
     itinerary_task.description = (
-        f"Create a travel itinerary for {place} "
-        f"from {date_from} to {date_to}. "
-        f"Use the serper_search tool to get current information "
+        f"Create a travel itinerary for {place} "  # → place parameter
+        f"from {date_from} to {date_to}. "  # → date_from, date_to parameters
+        f"Use the serper_search tool to get current information " # → live_info comes from this
         f"about attractions and activities in {place} for December 2025. "
         f"Focus on tourist attractions, museums, landmarks, and activities. "
         f"DO NOT include events, festivals, or time-specific activities. "
