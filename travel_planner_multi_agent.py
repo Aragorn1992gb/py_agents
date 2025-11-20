@@ -517,3 +517,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# TODO map well the images, insert corerctly hours (like the old json), delete lasr day 1
