@@ -140,6 +140,17 @@ def format_travel_json(
     """Formats the complete itinerary into the required JSON structure."""
     logging.info("📋 Formatting itinerary into JSON structure")
 
+    # def extract_time_from_name(activity_name):
+    #     import re
+
+    #     time_pattern = r"(\d{2}:\d{2}-\d{2}:\d{2})"
+    #     match = re.search(time_pattern, activity_name)
+    #     if match:
+    #         time = match.group(1)
+    #         name = activity_name.replace(match.group(0), "").strip()
+    #         return time, name
+    #     return "", activity_name
+
     try:
         # Try to parse if it's already JSON
         if itinerary_text.strip().startswith("{"):
@@ -170,6 +181,8 @@ def format_travel_json(
         current_day = None
         current_activities = []
         current_images = []
+
+        current_activity = {}
 
         for line in lines:
             line = line.strip()
@@ -210,18 +223,35 @@ def format_travel_json(
                 current_images = []
 
             # Parse activities (numbered or bulleted items)
-            elif (line and line[0].isdigit() and "." in line) or line.startswith("- "):
-                if line.startswith("- "):
-                    activity_name = line[2:].strip()
-                else:
-                    activity_name = line.split(".", 1)[1].strip()
+            # elif (line and line[0].isdigit() and "." in line) or line.startswith("- "):
+            #     if line.startswith("- "):
+            #         activity_name = line[2:].strip()
+            #     else:
+            #         activity_name = line.split(".", 1)[1].strip()
 
-                current_activity = {
-                    "time": "",
-                    "name": activity_name,
-                    "description": "",
-                }
+            #     # Extract time and clean name using the function
+            #     time, clean_name = extract_time_from_name(activity_name)
+
+            #     current_activity = {
+            #         "time": time,
+            #         "name": clean_name,
+            #         "description": "",
+            #     }
+            #     current_activities.append(current_activity)
+            elif line and line[0].isdigit():
+
+                # Extract time and clean name using the function
+                time, clean_name = extract_time_from_name(line)
+
+                current_activity["time"] = time
+                current_activity["name"] = clean_name
+            elif line and ((line.startswith("- ") or line.startswith("  - "))):
+                current_activity["description"] = line[2:].strip() + "\n "
+                # current_activities.append(current_activity)
+                # current_activity = {}
+            elif line and line == "":
                 current_activities.append(current_activity)
+                current_activity = {}
 
         # Add the last day
         if current_day is not None:
@@ -455,8 +485,8 @@ def create_travel_itinerary(
 
     OUTPUT FORMAT: Structure each day as:
     Day X: [Location Name]
-    - HH:MM-HH:MM Activity name (specific details)
-    - HH:MM-HH:MM Next activity (specific details)
+    - HH:MM-HH:MM, Activity name, Activity details
+    - HH:MM-HH:MM, Next activity name, Activity details
     [Brief day description explaining the cultural/historical significance]
 
     Use your tools to research attractions and optimize routing for {destination}.
@@ -488,6 +518,19 @@ def create_travel_itinerary(
     print("=" * 60)
 
     return result
+
+
+# In format_travel_json tool, add time extraction:
+def extract_time_from_name(activity_name):
+    import re
+
+    time_pattern = r"(\d{2}:\d{2}-\d{2}:\d{2})"
+    match = re.search(time_pattern, activity_name)
+    if match:
+        time = match.group(1)
+        name = activity_name.replace(match.group(0), "").strip()
+        return time, name
+    return "", activity_name
 
 
 def main():
