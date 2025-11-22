@@ -48,7 +48,7 @@ tavily_tool = TavilySearchTool(
     search_depth="advanced",
     include_images=True,
     include_answer=True,
-    max_results=5
+    max_results=5,
 )
 
 
@@ -59,23 +59,23 @@ def travel_search(query: str) -> str:
     try:
         # Use Tavily tool for comprehensive search with images
         search_results = tavily_tool.run(query)
- 
+
         # Tavily returns structured data with content and images
         if isinstance(search_results, str):
             return search_results
         elif isinstance(search_results, dict):
             # Format the results nicely
             formatted_results = []
-    
-            if 'answer' in search_results:
+
+            if "answer" in search_results:
                 formatted_results.append(f"Answer: {search_results['answer']}")
-    
-            if 'results' in search_results:
-                for result in search_results['results'][:3]:
-                    title = result.get('title', 'No title')
-                    content = result.get('content', 'No content')
+
+            if "results" in search_results:
+                for result in search_results["results"][:3]:
+                    title = result.get("title", "No title")
+                    content = result.get("content", "No content")
                     formatted_results.append(f"{title}: {content}")
-     
+
             return "\n".join(formatted_results)
         else:
             return str(search_results)
@@ -108,8 +108,9 @@ def location_optimizer(attractions_list: str, location: str) -> str:
 
 
 @tool("Enhanced Attraction Details Tool")
-def attraction_details_with_images(attraction_name: str, location: str,
-                                 visit_date: str) -> str:
+def attraction_details_with_images(
+    attraction_name: str, location: str, visit_date: str
+) -> str:
     """Gets detailed information and images for attractions using Tavily."""
     logging.info(f"🏛️ Getting details for: {attraction_name} on {visit_date}")
 
@@ -125,7 +126,9 @@ def attraction_details_with_images(attraction_name: str, location: str,
         image_results = tavily_tool.run(image_query)
 
         # Combine results
-        combined_results = f"ATTRACTION DETAILS:\n{search_results}\n\nIMAGES:\n{image_results}"
+        combined_results = (
+            f"ATTRACTION DETAILS:\n{search_results}\n\nIMAGES:\n{image_results}"
+        )
 
         return combined_results
 
@@ -135,37 +138,38 @@ def attraction_details_with_images(attraction_name: str, location: str,
 
 
 @tool("JSON Formatter Tool")
-def format_travel_json(itinerary_text: str, destination: str, 
-                      start_date: str, end_date: str) -> str:
+def format_travel_json(
+    itinerary_text: str, destination: str, start_date: str, end_date: str
+) -> str:
     """Formats the complete itinerary into the required JSON structure."""
     logging.info("📋 Formatting itinerary into JSON structure")
 
     try:
         # Try to parse if it's already JSON
-        if itinerary_text.strip().startswith('{'):
+        if itinerary_text.strip().startswith("{"):
             parsed_json = json.loads(itinerary_text)
 
             # Add images to the existing structure
-            if 'itinerary' in parsed_json and 'days' in parsed_json['itinerary']:
-                for day in parsed_json['itinerary']['days']:
+            if "itinerary" in parsed_json and "days" in parsed_json["itinerary"]:
+                for day in parsed_json["itinerary"]["days"]:
                     # Add images_day field with sample images for each day
-                    day['images_day'] = [
+                    day["images_day"] = [
                         {
                             "url": f"https://upload.wikimedia.org/wikipedia/commons/placeholder_day_{day.get('day_number', 1)}.jpg",
-                            "description": f"Beautiful view of {day.get('title', 'Rome')} attractions"
+                            "description": f"Beautiful view of {day.get('title', 'Rome')} attractions",
                         }
                     ]
                     # Ensure standard field names
-                    if 'day_number' in day:
-                        day['day'] = day['day_number']
-                    if 'title' in day:
-                        day['location'] = day['title']
-                        day['description'] = day.get('day_description', '')
+                    if "day_number" in day:
+                        day["day"] = day["day_number"]
+                    if "title" in day:
+                        day["location"] = day["title"]
+                        day["description"] = day.get("day_description", "")
 
             return json.dumps(parsed_json, indent=2)
 
         # If not JSON, parse as text (original logic)
-        lines = itinerary_text.split('\n')
+        lines = itinerary_text.split("\n")
         days = []
         current_day = None
         current_activities = []
@@ -177,21 +181,21 @@ def format_travel_json(itinerary_text: str, destination: str,
                 continue
 
             # Detect day headers
-            if line.startswith('Day ') and (':' in line or '–' in line):
+            if line.startswith("Day ") and (":" in line or "–" in line):
                 # Save previous day if exists
                 if current_day is not None:
-                    current_day['activities'] = current_activities
-                    current_day['images_day'] = current_images
+                    current_day["activities"] = current_activities
+                    current_day["images_day"] = current_images
                     days.append(current_day)
 
                 # Parse day header
-                if '–' in line:
-                    parts = line.split('–')
-                    day_num = parts[0].strip().replace('Day ', '')
+                if "–" in line:
+                    parts = line.split("–")
+                    day_num = parts[0].strip().replace("Day ", "")
                     day_location = parts[1].strip() if len(parts) > 1 else destination
                 else:
                     # Handle "Day X:" format
-                    day_num = line.split(':')[0].strip().replace('Day ', '')
+                    day_num = line.split(":")[0].strip().replace("Day ", "")
                     day_location = destination
 
                 current_day = {
@@ -202,40 +206,38 @@ def format_travel_json(itinerary_text: str, destination: str,
                     "images_day": [
                         {
                             "url": f"https://upload.wikimedia.org/wikipedia/commons/placeholder_day_{day_num}.jpg",
-                            "description": f"Sample image for day {day_num} in {destination}"
+                            "description": f"Sample image for day {day_num} in {destination}",
                         }
-                    ]
+                    ],
                 }
                 current_activities = []
                 current_images = []
 
             # Parse activities (numbered or bulleted items)
-            elif (line and line[0].isdigit() and '.' in line) or line.startswith('- '):
-                if line.startswith('- '):
+            elif (line and line[0].isdigit() and "." in line) or line.startswith("- "):
+                if line.startswith("- "):
                     activity_name = line[2:].strip()
                 else:
-                    activity_name = line.split('.', 1)[1].strip()
+                    activity_name = line.split(".", 1)[1].strip()
 
                 current_activity = {
                     "time": "",
                     "name": activity_name,
-                    "description": ""
+                    "description": "",
                 }
                 current_activities.append(current_activity)
 
         # Add the last day
         if current_day is not None:
-            current_day['activities'] = current_activities
-            current_day['images_day'] = current_images
+            current_day["activities"] = current_activities
+            current_day["images_day"] = current_images
             days.append(current_day)
 
         # Create final structured JSON
         formatted_json = {
             "success": True,
             "message": "Itinerary generated successfully",
-            "itinerary": {
-                "days": days
-            }
+            "itinerary": {"days": days},
         }
 
         return json.dumps(formatted_json, indent=2)
@@ -256,15 +258,16 @@ def format_travel_json(itinerary_text: str, destination: str,
                         "images_day": [
                             {
                                 "url": "https://upload.wikimedia.org/wikipedia/commons/placeholder.jpg",
-                                "description": f"Sample image for {destination}"
+                                "description": f"Sample image for {destination}",
                             }
-                        ]
+                        ],
                     }
                 ]
             },
-            "raw_itinerary": itinerary_text
+            "raw_itinerary": itinerary_text,
         }
         return json.dumps(fallback_json, indent=2)
+
 
 # =============================================================================
 # STEP 2: SPECIALIZED AGENTS
@@ -288,10 +291,10 @@ planner_agent = Agent(
     verbose=True,
     tools=[location_optimizer],  # Only route optimization
     llm=llm,  # Use configured LLM
-    allow_delegation=False
+    allow_delegation=False,
 )
 
-# 🔍 RESEARCHER AGENT - Gathers detailed information  
+# 🔍 RESEARCHER AGENT - Gathers detailed information
 researcher_agent = Agent(
     role="Travel Information Researcher",
     goal="Gather comprehensive details about attractions, transport, accommodation, and practical travel information",
@@ -299,7 +302,7 @@ researcher_agent = Agent(
     verbose=True,
     tools=[travel_search, attraction_details_with_images],
     llm=llm,  # Use configured LLM
-    allow_delegation=False
+    allow_delegation=False,
 )
 
 
@@ -341,10 +344,10 @@ planning_task = Task(
     Use your tools to research attractions and optimize routing.
     """,
     expected_output="Structured itinerary with optimized daily schedules, activity timing, and logical flow between attractions",
-    agent=planner_agent
+    agent=planner_agent,
 )
 
-# 🔍 TASK 2: Research & Details (Researcher Agent)  
+# 🔍 TASK 2: Research & Details (Researcher Agent)
 research_task = Task(
     description="""
     Take the structured itinerary from the planning task and enrich it with detailed information.
@@ -370,7 +373,7 @@ research_task = Task(
     """,
     expected_output="Comprehensive itinerary with detailed attraction information, practical details, opening hours, prices, and rich descriptions for the specific travel dates",
     agent=researcher_agent,
-    context=[planning_task]  # Gets input from planning_task
+    context=[planning_task],  # Gets input from planning_task
 )
 
 # 📋 TASK 4: Final JSON Assembly
@@ -380,7 +383,7 @@ json_assembly_task = Task(
 
     YOUR TASKS:
     1. Parse the planning task output for day structure
-    2. Extract detailed information from research task  
+    2. Extract detailed information from research task
     3. Incorporate images from image collection task
     4. Use format_travel_json tool with the complete itinerary text
     5. Return properly structured JSON with success, message, and itinerary.days
@@ -393,7 +396,7 @@ json_assembly_task = Task(
     expected_output="Complete JSON-formatted itinerary with success, message, and itinerary.days containing all travel information in proper structure",
     agent=planner_agent,  # Reuse planner agent for final assembly
     context=[planning_task, research_task],  # Images included in research task
-    tools=[format_travel_json]  # Add the JSON formatter tool
+    tools=[format_travel_json],  # Add the JSON formatter tool
 )
 
 # =============================================================================
@@ -418,10 +421,9 @@ travel_crew = Crew(
     agents=[planner_agent, researcher_agent],
     tasks=[planning_task, research_task, json_assembly_task],
     verbose=True,
-    sequential=True
+    sequential=True,
     # process=Process.hierarchical  # Allows parallel execution where possible
     # manager_agent=manager_agent  # Need to add this when using hierarchical
-
 )
 
 # =============================================================================
@@ -429,8 +431,12 @@ travel_crew = Crew(
 # =============================================================================
 
 
-def create_travel_itinerary(destination: str, start_date: str, end_date: str,
-                           preferences: str = "adventure and cultural activities"):
+def create_travel_itinerary(
+    destination: str,
+    start_date: str,
+    end_date: str,
+    preferences: str = "adventure and cultural activities",
+):
     """
     Main function to create a comprehensive travel itinerary.
     """
@@ -473,14 +479,14 @@ def create_travel_itinerary(destination: str, start_date: str, end_date: str,
     print(f"🚀 Starting multi-agent travel planning for {destination}")
     print(f"📅 Dates: {start_date} to {end_date}")
     print(f"🎯 Preferences: {preferences}")
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
 
     # Execute the crew - all tasks run sequentially
     result = travel_crew.kickoff()
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("✅ COMPLETE TRAVEL ITINERARY")
-    print("="*60)
+    print("=" * 60)
 
     return result
 
@@ -488,13 +494,13 @@ def create_travel_itinerary(destination: str, start_date: str, end_date: str,
 def main():
     # Example: Create itinerary for Rome (smaller example for testing)
     destination = "Rome, Italy"
-    start_date = "2025-12-01" 
+    start_date = "2025-12-01"
     end_date = "2025-12-03"  # 3 days
     preferences = "cultural sites, history, traditional food"
 
     # Log which model CrewAI is using
     print(f"🤖 Using OpenAI model: {llm.model}")
-    api_key_status = "Yes" if os.environ.get('OPENAI_API_KEY') else "No"
+    api_key_status = "Yes" if os.environ.get("OPENAI_API_KEY") else "No"
     print(f"🔑 API Key configured: {api_key_status}")
 
     try:
@@ -502,14 +508,14 @@ def main():
             destination=destination,
             start_date=start_date,
             end_date=end_date,
-            preferences=preferences
+            preferences=preferences,
         )
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("📋 RAW OUTPUT FOR ANALYSIS:")
-        print("="*60)
+        print("=" * 60)
         print(itinerary)
-        print("="*60)
+        print("=" * 60)
 
     except Exception as e:
         print(f"❌ Error creating itinerary: {e}")
