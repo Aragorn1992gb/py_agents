@@ -108,9 +108,7 @@ def location_optimizer(attractions_list: str, location: str) -> str:
 
 
 @tool("Enhanced Attraction Details Tool")
-def attraction_details_with_images(
-    attraction_name: str, location: str, visit_date: str
-) -> str:
+def attraction_details_with_images(attraction_name: str, location: str, visit_date: str) -> str:
     """Gets detailed information and images for attractions using Tavily."""
     logging.info(f"🏛️ Getting details for: {attraction_name} on {visit_date}")
 
@@ -126,9 +124,7 @@ def attraction_details_with_images(
         image_results = tavily_tool.run(image_query)
 
         # Combine results
-        combined_results = (
-            f"ATTRACTION DETAILS:\n{search_results}\n\nIMAGES:\n{image_results}"
-        )
+        combined_results = f"ATTRACTION DETAILS:\n{search_results}\n\nIMAGES:\n{image_results}"
 
         return combined_results
 
@@ -155,7 +151,7 @@ def format_travel_json(
                     # Add images_day field with sample images for each day
                     day["images_day"] = [
                         {
-                            "url": f"https://upload.wikimedia.org/wikipedia/commons/placeholder_day_{day.get('day_number', 1)}.jpg",
+                            "url": f"https://upload.wikimedia.org/wikipedia/ commons/ placeholder_day_{day.get('day_number', 1)}.jpg",
                             "description": f"Beautiful view of {day.get('title', 'Rome')} attractions",
                         }
                     ]
@@ -297,8 +293,11 @@ planner_agent = Agent(
 # 🔍 RESEARCHER AGENT - Gathers detailed information
 researcher_agent = Agent(
     role="Travel Information Researcher",
-    goal="Gather comprehensive details about attractions, transport, accommodation, and practical travel information",
-    backstory="You are a meticulous travel researcher who finds detailed, accurate information about destinations. You specialize in opening hours, ticket prices, transport options, and practical visitor information.",
+    goal="Gather comprehensive details about attractions, transport, "
+    "accommodation, and practical travel information",
+    backstory="You are a meticulous travel researcher who finds detailed, "
+    "accurate information about destinations. You specialize in opening hours,"
+    " ticket prices, transport options, and practical visitor information.",
     verbose=True,
     tools=[travel_search, attraction_details_with_images],
     llm=llm,  # Use configured LLM
@@ -525,4 +524,4 @@ if __name__ == "__main__":
     main()
 
 
-# TODO map well the images, insert corerctly hours (like the old json), delete lasr day 1
+# TODO map well the images, insert corerctly hours (like the old json), delete last day 1

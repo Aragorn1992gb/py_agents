@@ -100,11 +100,19 @@ Both approaches work well - Python for rapid AI development, Rust for production
 ```json
 {
   "python.formatting.provider": "black",
+  "python.formatting.blackArgs": [
+    "--line-length=100",
+    "--target-version=py311",
+    "--force-exclude=venv/"
+  ],
   "[python]": {
     "editor.formatOnSave": true,
     "editor.defaultFormatter": "ms-python.black-formatter",
     "files.trimTrailingWhitespace": true,
-    "files.insertFinalNewline": true
+    "files.insertFinalNewline": true,
+    "editor.rulers": [100],
+    "editor.wordWrap": "wordWrapColumn",
+    "editor.wordWrapColumn": 100
   },
   "[rust]": {
     "editor.formatOnSave": true,
@@ -113,7 +121,12 @@ Both approaches work well - Python for rapid AI development, Rust for production
     "files.insertFinalNewline": true
   },
   "python.linting.enabled": true,
-  "python.linting.flake8Enabled": false,
-  "python.linting.pylintEnabled": false
+  "python.linting.flake8Enabled": true,
+  "python.linting.flake8Args": [
+    "--max-line-length=100",
+    "--ignore=E203,W503,E501,E402,F401"
+  ],
+  "python.linting.pylintEnabled": false,
+  "black-formatter.args": ["--line-length=100"]
 }
 ```
