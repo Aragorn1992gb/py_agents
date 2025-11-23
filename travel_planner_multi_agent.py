@@ -568,3 +568,5 @@ if __name__ == "__main__":
 
 
 # TODO map well the images, insert corerctly hours (like the old json), delete last day 1
+# TODO Only one image per attraction, the most characteristic one, repalce array with string.
+# TODO Create a scond agent who check the feasibility of the path checking the delta time between attractions.
