@@ -51,6 +51,15 @@ tavily_tool = TavilySearchTool(
     max_results=5,
 )
 
+# Separate tool for individual attraction details (no images)
+tavily_details_tool = TavilySearchTool(
+    api_key=os.environ.get("TAVILY_API_KEY"),
+    search_depth="advanced",
+    include_images=False,  # No images for individual searches
+    include_answer=True,
+    max_results=5,
+)
+
 
 @tool("Comprehensive Travel Search Tool")
 def travel_search(query: str) -> str:
@@ -117,14 +126,16 @@ def attraction_details_with_images(attraction_name: str, location: str, visit_da
 
     try:
         # Use Tavily for comprehensive search with images
-        search_results = tavily_tool.run(query)
+        # search_results = tavily_tool.run(query)
+        search_results = tavily_details_tool.run(query)
 
         # Add image search for the attraction
-        image_query = f"{attraction_name} {location} photos high quality images"
-        image_results = tavily_tool.run(image_query)
+        # image_query = f"{attraction_name} {location} photos high quality images"
+        # image_results = tavily_tool.run(image_query)
 
         # Combine results
-        combined_results = f"ATTRACTION DETAILS:\n{search_results}\n\nIMAGES:\n{image_results}"
+        # combined_results = f"ATTRACTION DETAILS:\n{search_results}\n\nIMAGES:\n{image_results}"
+        combined_results = f"ATTRACTION DETAILS:\n{search_results}\n\n"
 
         return combined_results
 
@@ -245,6 +256,12 @@ def format_travel_json(
 
                 current_activity["time"] = time
                 current_activity["name"] = clean_name
+            elif line and (line.startswith("- Images") or line.startswith("Images")):
+                continue
+            elif line and line.startswith("- https://"):
+                current_images.append(line[2:].strip())
+            elif line and line.startswith("https://"):
+                current_images.append(line)
             elif line and ((line.startswith("- ") or line.startswith("  - "))):
                 current_activity["description"] = line[2:].strip() + "\n "
                 # current_activities.append(current_activity)
