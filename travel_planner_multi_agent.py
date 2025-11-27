@@ -130,12 +130,12 @@ def attraction_details_with_images(attraction_name: str, location: str, visit_da
         search_results = tavily_details_tool.run(query)
 
         # Add image search for the attraction
-        # image_query = f"{attraction_name} {location} photos high quality images"
-        # image_results = tavily_tool.run(image_query)
+        image_query = f"{attraction_name} {location} one photo high quality image"
+        image_result = tavily_tool.run(image_query)
 
         # Combine results
-        # combined_results = f"ATTRACTION DETAILS:\n{search_results}\n\nIMAGES:\n{image_results}"
-        combined_results = f"ATTRACTION DETAILS:\n{search_results}\n\n"
+        combined_results = f"ATTRACTION DETAILS:\n{search_results}\n\nIMAGE:\n{image_result}"
+        # combined_results = f"ATTRACTION DETAILS:\n{search_results}\n\n"
 
         return combined_results
 
@@ -199,7 +199,7 @@ def format_travel_json(
             line = line.strip()
             if not line:
                 continue
-
+            # TODO check the new line structure
             # Detect day headers
             if line.startswith("Day ") and (":" in line or "–" in line):
                 # Save previous day if exists
@@ -351,6 +351,16 @@ researcher_agent = Agent(
     allow_delegation=False,
 )
 
+# TODO consider also the preferences of the user, for example visit main attraction at sunset, without care about queue in that case
+
+refining_agent = Agent(
+    role="Itinerary Feasibility Optimizer",
+    goal="Check the itinerary feasibility, especially between each attraction of the day: the user need to have the time to move between one attraction and the next one, with a plus 10 minutes (or a reasonable percentage) bonus between one attraction to the other one. For instance, if one attraction ends at 9:30 and the next attraction is at 30 minutes from there, the start hour of next attraction is at 10:10. Be sure to check also queues, so if an attraction in that specific hour is often under queue, consider to increment the time of the attraction due to the queue estimation. Optimize the attractions between each day, in order to save time and considering the time in which you can find less queue. Finally, return the optimal itinerary for each day",
+    backstory="You are an experienced travel logistics coordinator who specializes in analyzing travel times, queue patterns, and attraction accessibility. You have extensive knowledge of peak hours, walking distances between attractions, and realistic time requirements for each location. Your expertise helps create feasible itineraries that account for real-world travel constraints.",
+    verbose=True,
+    llm=llm,
+    allow_delegation=False,
+)
 
 # =============================================================================
 # STEP 3: SEQUENTIAL TASKS WITH DEPENDENCIES
@@ -422,6 +432,34 @@ research_task = Task(
     context=[planning_task],  # Gets input from planning_task
 )
 
+refining_task = Task(
+    description="""
+    Take the structured itinerary from the research task evaluating and and refining the itinerary.
+# TODO finish here
+    IMPORTANT: Looks the .
+
+    YOUR TASKS:
+    1. Research detailed information for each attraction/activity using specific visit dates
+    2. Find opening hours, prices, and practical details for the planned dates
+    3. Add transport information between locations
+    4. Include relevant tips and descriptions
+    5. Verify current information and availability for the specific dates
+    6. When using attraction_details tool, extract the actual date from the itinerary
+
+    OUTPUT FORMAT: Enhanced itinerary with:
+    - Detailed descriptions for each activity
+    - Practical visitor information for specific dates
+    - Transport and timing details
+    - Cultural and historical context
+    - Date-specific information (events, hours, etc.)
+
+    Build upon the previous task's structure and use the exact dates provided.
+    """,
+    expected_output="Comprehensive itinerary with detailed attraction information, practical details, opening hours, prices, and rich descriptions for the specific travel dates",
+    agent=refining_agent,
+    context=[research_task],  # Gets input from research_task
+)
+
 # 📋 TASK 4: Final JSON Assembly
 json_assembly_task = Task(
     description="""
@@ -430,7 +468,7 @@ json_assembly_task = Task(
     YOUR TASKS:
     1. Parse the planning task output for day structure
     2. Extract detailed information from research task
-    3. Incorporate images from image collection task
+    3. Incorporate images from research task
     4. Use format_travel_json tool with the complete itinerary text
     5. Return properly structured JSON with success, message, and itinerary.days
 
@@ -464,6 +502,7 @@ json_assembly_task = Task(
 #     process=Process.hierarchical  # Allows parallel execution where possible
 # )
 travel_crew = Crew(
+    # agents=[planner_agent, researcher_agent, refining_agent],
     agents=[planner_agent, researcher_agent],
     tasks=[planning_task, research_task, json_assembly_task],
     verbose=True,
@@ -502,9 +541,9 @@ def create_travel_itinerary(
 
     OUTPUT FORMAT: Structure each day as:
     Day X: [Location Name]
-    - HH:MM-HH:MM, Activity name, Activity details
-    - HH:MM-HH:MM, Next activity name, Activity details
-    [Brief day description explaining the cultural/historical significance]
+    - HH:MM-HH:MM Activity: Brief title. Description: Detailed description of what you'll see and do.
+    - HH:MM-HH:MM Next Activity: Brief title. Description: Detailed description of what you'll see and do.
+    [Detailed day description explaining the cultural/historical significance]
 
     Use your tools to research attractions and optimize routing for {destination}.
     """
@@ -518,7 +557,7 @@ def create_travel_itinerary(
     3. Add transport information between locations
     4. Include relevant tips and descriptions
     5. Verify current information and availability for {start_date} to {end_date}
-    6. Find high-quality images for each day's main attractions
+    6. Find high-quality images for each day's main attractions, maximum one per attraction
 
     Build upon the previous task's structure.
     """
@@ -586,4 +625,4 @@ if __name__ == "__main__":
 
 # TODO map well the images, insert corerctly hours (like the old json), delete last day 1
 # TODO Only one image per attraction, the most characteristic one, repalce array with string.
-# TODO Create a scond agent who check the feasibility of the path checking the delta time between attractions.
+# TODO Create a second agent who check the feasibility of the path checking the delta time between attractions.
