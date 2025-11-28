@@ -1,6 +1,7 @@
 import os
 import requests
 import json
+import re
 from crewai import Agent, Task, Crew, LLM, Process
 from crewai.tools import tool
 from crewai_tools import TavilySearchTool
@@ -116,6 +117,28 @@ def location_optimizer(attractions_list: str, location: str) -> str:
     return optimization_prompt
 
 
+def extract_image_urls(result_text):
+    """Extract direct image URLs from search results."""
+    import re
+
+    # Try multiple patterns for image URLs
+    patterns = [
+        r'https?://[^\s"\'>]+\.(jpg|jpeg|png|gif|webp)',  # Direct image URLs
+        r'"url"\s*:\s*"([^"]+\.(jpg|jpeg|png|gif|webp))"',  # JSON format
+        r"'url'\s*:\s*'([^']+\.(jpg|jpeg|png|gif|webp))'",  # Single quotes JSON
+        r'src="([^"]+\.(jpg|jpeg|png|gif|webp))"',  # HTML img src
+    ]
+
+    for pattern in patterns:
+        urls = re.findall(pattern, result_text, re.IGNORECASE)
+        if urls:
+            # If pattern captures groups, take the first group, otherwise the full match
+            return urls[0] if isinstance(urls[0], str) else urls[0][0]
+
+    # Fallback: return a placeholder image URL
+    return "https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=800"
+
+
 @tool("Enhanced Attraction Details Tool")
 def attraction_details_with_images(attraction_name: str, location: str, visit_date: str) -> str:
     """Gets detailed information and images for attractions using Tavily."""
@@ -130,12 +153,25 @@ def attraction_details_with_images(attraction_name: str, location: str, visit_da
         search_results = tavily_details_tool.run(query)
 
         # Add image search for the attraction
-        image_query = f"{attraction_name} {location} one photo high quality image"
+        image_query = (
+            f"{attraction_name} {location} filetype:jpg OR filetype:png high resolution image"
+        )
         image_result = tavily_tool.run(image_query)
+
+        # direct_image_url = extract_image_urls(image_result)
 
         # Combine results
         combined_results = f"ATTRACTION DETAILS:\n{search_results}\n\nIMAGE:\n{image_result}"
         # combined_results = f"ATTRACTION DETAILS:\n{search_results}\n\n"
+
+        # if direct_image_url:
+        #     combined_results = (
+        #         f"ATTRACTION DETAILS:\n{search_results}\n\nIMAGE:\n{direct_image_url}"
+        #     )
+        # else:
+        #     combined_results = (
+        #         f"ATTRACTION DETAILS:\n{search_results}\n\nIMAGE:\nNo direct image found"
+        #     )
 
         return combined_results
 
